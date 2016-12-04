@@ -5,4 +5,15 @@
 
 The [Stack Exchange chat network](http://chat.stackexchange.com) does not provide an official API. This package aims to bridge that gap for Go applications by providing a simple interface with native Go primitives (channels, etc.).
 
-TODO
+### Usage
+
+To use the package, simply import it:
+
+    import "github.com/nathan-osman/go-sechat"
+
+In order to make authenticated requests, create an `Auth` object and invoke its `Login()` method:
+
+    a, _ := sechat.NewAuth("email", "password")
+    if err := a.Login(); err != nil {
+        // process login error
+    }

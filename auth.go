@@ -11,14 +11,15 @@ import (
 )
 
 var (
-	// TODO: ideally these would be replaced with something like goquery to avoid
-	// hardcoding the exact format of the HTML elements containing important data
+	// TODO: ideally these would be replaced with something like goquery to
+	// avoid hardcoding the exact format of the HTML elements containing
+	// important data
 	fkeyRegexp = regexp.MustCompile(`<input type="hidden" id="fkey" name="fkey" value="([0-9a-f-]+)" />`)
 	authRegexp = regexp.MustCompile(`<a href="([^"]+)" target="_top">`)
 
 	errFkey = errors.New("unable to find fkey")
 	errAuth = errors.New("unable to find auth URL")
-	errUrl  = errors.New("unexpected page redirection")
+	errUrl  = errors.New("unexpected page redirection (bad credentials?)")
 )
 
 // Auth contains the information necessary to login to the Stack Exchange chat
