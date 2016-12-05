@@ -15,27 +15,18 @@ To use the package, simply import it:
 
 In order to make authenticated requests, create an `Auth` object and invoke its `Login()` method:
 
-    a, _ := sechat.NewAuth(&sechat.AuthState{
-        Email: "",
-        Password: "",
-    })
+    a, _ := sechat.NewAuth("email", "password")
     if err := a.Login(); err != nil {
         // process login error
     }
 
-Once logged in, the `State()` method can be used to obtain a serializable object. This can later be passed to `NewAuth()` to restore the authentication data:
+Once logged in, the `Save()` method can be used to obtain a serializable object. This can later be passed to `Load()` to restore the authentication data:
 
-    s, _ := a.State()
+    s, _ := a.Save()
     // ...
     // do something with s, such as saving to a file
     // ...
-    a, _ := sechat.NewAuth(s)
-
-To determine if an `AuthState` contains serialized authentication data, use the `IsLoggedIn()` method:
-
-    if a.IsLoggedIn() {
-        //...
-    }
+    a.Load(s)
 
 ### Posting Messages
 

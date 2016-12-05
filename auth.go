@@ -22,17 +22,17 @@ var (
 // network. Currently, only Stack Exchange credentials are accepted (OpenID is
 // not supported yet).
 type Auth struct {
-	client *http.Client
-	state  *AuthState
+	client   *http.Client
+	email    string
+	password string
+	fkey     string
 }
 
-// AuthState maintains the information both to establish an authenticated
-// connection and restore an existing session that has been serialized.
+// AuthState preserves authentication data such as the fkey and cookies. This
+// type allows for easy serialization and deserialization.
 type AuthState struct {
-	Email    string
-	Password string
-	Fkey     string
-	Cookies  []*http.Cookie
+	Cookies []*http.Cookie
+	Fkey    string
 }
 
 // fetchLoginPage retrieves the URL of the page that contains the login form.
@@ -100,8 +100,8 @@ func (a *Auth) fetchAuthURL(res *http.Response) (string, error) {
 // A URL is returned which is necessary to complete the login process.
 func (a *Auth) submitLoginForm(fkey string) (string, error) {
 	form := &url.Values{}
-	form.Set("email", a.state.Email)
-	form.Set("password", a.state.Password)
+	form.Set("email", a.email)
+	form.Set("password", a.password)
 	form.Set("affId", "11")
 	form.Set("fkey", fkey)
 	req, err := http.NewRequest(
@@ -166,28 +166,29 @@ func (a *Auth) fetchChatFkey() (string, error) {
 
 // NewAuth creates an object that can be used to issue authenticated requests
 // against the Stack Exchange servers.
-func NewAuth(state *AuthState) (*Auth, error) {
+func NewAuth(email, password string) (*Auth, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
 	}
-	u, err := url.Parse("https://chat.stackexchange.com")
-	if err != nil {
-		return nil, err
-	}
-	jar.SetCookies(u, state.Cookies)
 	return &Auth{
 		client: &http.Client{
 			Jar: jar,
 		},
-		state: state,
+		email:    email,
+		password: password,
 	}, nil
 }
 
-// IsLoggedIn determines if the current state contains login information. Note
-// that the information is not checked to be valid.
-func (a *Auth) IsLoggedIn() bool {
-	return len(a.state.Fkey) != 0 && len(a.state.Cookies) != 0
+// Load is used to restore authentication data that has been serialized.
+func (a *Auth) Load(authState *AuthState) error {
+	u, err := url.Parse("https://chat.stackexchange.com")
+	if err != nil {
+		return err
+	}
+	a.client.Jar.SetCookies(u, authState.Cookies)
+	a.fkey = authState.Fkey
+	return nil
 }
 
 // Login performs the sequence of steps necessary to authenticate with the
@@ -212,16 +213,18 @@ func (a *Auth) Login() error {
 	if err != nil {
 		return err
 	}
-	a.state.Fkey = chatFkey
+	a.fkey = chatFkey
 	return nil
 }
 
-// State returns the current login state in preparation for serialization.
-func (a *Auth) State() (*AuthState, error) {
+// Save returns the current login state in preparation for serialization.
+func (a *Auth) Save() (*AuthState, error) {
 	u, err := url.Parse("https://chat.stackexchange.com")
 	if err != nil {
 		return nil, err
 	}
-	a.state.Cookies = a.client.Jar.Cookies(u)
-	return a.state, nil
+	return &AuthState{
+		Cookies: a.client.Jar.Cookies(u),
+		Fkey:    a.fkey,
+	}, nil
 }

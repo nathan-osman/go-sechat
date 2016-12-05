@@ -20,7 +20,7 @@ type Conn struct {
 // post eliminates a lot of common code used for sending POST requests.
 func (c *Conn) post(path string, params paramMap) error {
 	form := &url.Values{}
-	form.Set("fkey", c.auth.state.Fkey)
+	form.Set("fkey", c.auth.fkey)
 	for key, value := range params {
 		form.Set(key, value)
 	}
