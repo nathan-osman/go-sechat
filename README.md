@@ -13,7 +13,10 @@ To use the package, simply import it:
 
 In order to make authenticated requests, create an `Auth` object and invoke its `Login()` method:
 
-    a, _ := sechat.NewAuth("email", "password")
+    a, _ := sechat.NewAuth(&sechat.AuthState{
+        Email: "",
+        Password: "",
+    })
     if err := a.Login(); err != nil {
         // process login error
     }
