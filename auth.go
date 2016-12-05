@@ -171,6 +171,11 @@ func NewAuth(state *AuthState) (*Auth, error) {
 	if err != nil {
 		return nil, err
 	}
+	u, err := url.Parse("https://chat.stackexchange.com")
+	if err != nil {
+		return nil, err
+	}
+	jar.SetCookies(u, state.Cookies)
 	return &Auth{
 		client: &http.Client{
 			Jar: jar,
