@@ -11,6 +11,8 @@ To use the package, simply import it:
 
     import "github.com/nathan-osman/go-sechat"
 
+### Authentication
+
 In order to make authenticated requests, create an `Auth` object and invoke its `Login()` method:
 
     a, _ := sechat.NewAuth(&sechat.AuthState{
@@ -20,3 +22,26 @@ In order to make authenticated requests, create an `Auth` object and invoke its 
     if err := a.Login(); err != nil {
         // process login error
     }
+
+Once logged in, the `State()` method can be used to obtain a serializable object. This can later be passed to `NewAuth()` to restore the authentication data:
+
+    s, _ := a.State()
+    // ...
+    // do something with s, such as saving to a file
+    // ...
+    a, _ := sechat.NewAuth(s)
+
+To determine if an `AuthState` contains serialized authentication data, use the `IsLoggedIn()` method:
+
+    if a.IsLoggedIn() {
+        //...
+    }
+
+### Posting Messages
+
+To post a message, create an instance of `Conn` and invoke `Send()`:
+
+    c, _ := sechat.NewConn(auth)
+    c.Send(201, "Testing go-sechat...")
+
+`NewConn` expects a valid `Auth` to be passed as the first parameter. `Send()` expects the room ID and the actual message to send.
