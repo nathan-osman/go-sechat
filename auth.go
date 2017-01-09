@@ -1,12 +1,9 @@
 package sechat
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"strings"
 
@@ -14,41 +11,21 @@ import (
 )
 
 var (
-	errNetworkFkey = errors.New("unable to find network fkey")
-	errChatFkey    = errors.New("unable to find chat fkey")
-	errAuth        = errors.New("unable to find auth URL")
-	errUrl         = errors.New("incomplete login (invalid credentials)")
+	ErrNetworkFkey = errors.New("unable to find network fkey")
+	ErrChatFkey    = errors.New("unable to find chat fkey")
+	ErrAuthURL     = errors.New("unable to find auth URL")
+	ErrIncomplete  = errors.New("incomplete login (invalid credentials)")
 )
 
-type paramMap map[string]string
-type returnMap map[string]interface{}
-
-// Auth contains the information necessary to login to the Stack Exchange chat
-// network. Currently, only Stack Exchange credentials are accepted (OpenID is
-// not supported yet).
-type Auth struct {
-	client   *http.Client
-	email    string
-	password string
-	fkey     string
-}
-
-// AuthState preserves authentication data such as the fkey and cookies. This
-// type allows for easy serialization and deserialization.
-type AuthState struct {
-	Cookies []*http.Cookie
-	Fkey    string
-}
-
-// fetchLoginPage retrieves the URL of the page that contains the login form.
-func (a *Auth) fetchLoginURL() (string, error) {
+// fetchLoginURL retrieves the URL of the page that contains the login form.
+func (c *Conn) fetchLoginURL() (string, error) {
 	req, err := http.NewRequest(
 		http.MethodGet, "https://stackexchange.com/users/signin", nil,
 	)
 	if err != nil {
 		return "", err
 	}
-	res, err := a.client.Do(req)
+	res, err := c.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -61,12 +38,12 @@ func (a *Auth) fetchLoginURL() (string, error) {
 
 // fetchNetworkFkey retrieves the network fkey from the login form so that it
 // can be submitted during the login process.
-func (a *Auth) fetchNetworkFkey(url string) (string, error) {
+func (c *Conn) fetchNetworkFkey(url string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
-	res, err := a.client.Do(req)
+	res, err := c.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -76,14 +53,14 @@ func (a *Auth) fetchNetworkFkey(url string) (string, error) {
 	}
 	fkey, ok := doc.Find("#fkey").Attr("value")
 	if !ok {
-		return "", errNetworkFkey
+		return "", ErrNetworkFkey
 	}
 	return fkey, nil
 }
 
 // fetchAuthURL exists due to a bug in golang.org/x/net/html that prevents
 // noscript elements from being parsed correctly. This method works around it.
-func (a *Auth) fetchAuthURL(res *http.Response) (string, error) {
+func (c *Conn) fetchAuthURL(res *http.Response) (string, error) {
 	doc, err := goquery.NewDocumentFromResponse(res)
 	if err != nil {
 		return "", err
@@ -96,17 +73,17 @@ func (a *Auth) fetchAuthURL(res *http.Response) (string, error) {
 	}
 	url, ok := noscriptDoc.Find("a").Attr("href")
 	if !ok {
-		return "", errAuth
+		return "", ErrAuthURL
 	}
 	return url, nil
 }
 
 // submitLoginForm submits the authentication information along with the fkey.
 // A URL is returned which is necessary to complete the login process.
-func (a *Auth) submitLoginForm(fkey string) (string, error) {
+func (c *Conn) submitLoginForm(fkey string) (string, error) {
 	form := &url.Values{}
-	form.Set("email", a.email)
-	form.Set("password", a.password)
+	form.Set("email", c.email)
+	form.Set("password", c.password)
 	form.Set("affId", "11")
 	form.Set("fkey", fkey)
 	req, err := http.NewRequest(
@@ -118,34 +95,34 @@ func (a *Auth) submitLoginForm(fkey string) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, err := a.client.Do(req)
+	res, err := c.client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	// fetchAuthURL ought to be part of this method but please see its
 	// docstring for an explanation of why it isn't
-	return a.fetchAuthURL(res)
+	return c.fetchAuthURL(res)
 }
 
 // completeLogin finishes the login process.
-func (a *Auth) completeLogin(authUrl string) error {
+func (c *Conn) completeLogin(authUrl string) error {
 	req, err := http.NewRequest(http.MethodGet, authUrl, nil)
 	if err != nil {
 		return err
 	}
-	res, err := a.client.Do(req)
+	res, err := c.client.Do(req)
 	if err != nil {
 		return err
 	}
 	if res.Request.URL.Path != "/" {
-		return errUrl
+		return ErrIncomplete
 	}
 	return nil
 }
 
 // fetchChatFkey loads the home page for chat in order to retrieve the fkey
 // that is required to accompany every authenticated request.
-func (a *Auth) fetchChatFkey() (string, error) {
+func (c *Conn) fetchChatFkey() (string, error) {
 	req, err := http.NewRequest(
 		http.MethodGet,
 		"https://chat.stackexchange.com",
@@ -154,7 +131,7 @@ func (a *Auth) fetchChatFkey() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	res, err := a.client.Do(req)
+	res, err := c.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -164,104 +141,32 @@ func (a *Auth) fetchChatFkey() (string, error) {
 	}
 	fkey, ok := doc.Find("#fkey").Attr("value")
 	if !ok {
-		return "", errChatFkey
+		return "", ErrChatFkey
 	}
 	return fkey, nil
 }
 
-// post sends a POST request to the specified path with the specified
-// parameters. This helps eliminate a lot of common code.
-func (a *Auth) post(path string, params paramMap, reply interface{}) error {
-	form := &url.Values{}
-	form.Set("fkey", a.fkey)
-	for key, value := range params {
-		form.Set(key, value)
-	}
-	request, err := http.NewRequest(
-		http.MethodPost,
-		fmt.Sprintf("http://chat.stackexchange.com%s", path),
-		strings.NewReader(form.Encode()),
-	)
+// auth performs the steps necessary to authenticate against the chat server.
+func (c *Conn) auth() error {
+	loginURL, err := c.fetchLoginURL()
 	if err != nil {
 		return err
 	}
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	response, err := a.client.Do(request)
+	networkFkey, err := c.fetchNetworkFkey(loginURL)
 	if err != nil {
 		return err
 	}
-	if reply != nil {
-		if err := json.NewDecoder(response.Body).Decode(reply); err != nil {
-			return err
-		}
+	authURL, err := c.submitLoginForm(networkFkey)
+	if err != nil {
+		return err
 	}
-	if response.StatusCode != http.StatusOK {
-		return errors.New(response.Status)
+	if err := c.completeLogin(authURL); err != nil {
+		return err
 	}
+	chatFkey, err := c.fetchChatFkey()
+	if err != nil {
+		return err
+	}
+	c.fkey = chatFkey
 	return nil
-}
-
-// NewAuth creates an object that can be used to issue authenticated requests
-// against the Stack Exchange servers.
-func NewAuth(email, password string) (*Auth, error) {
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, err
-	}
-	return &Auth{
-		client: &http.Client{
-			Jar: jar,
-		},
-		email:    email,
-		password: password,
-	}, nil
-}
-
-// Load is used to restore authentication data that has been serialized.
-func (a *Auth) Load(authState *AuthState) error {
-	u, err := url.Parse("https://chat.stackexchange.com")
-	if err != nil {
-		return err
-	}
-	a.client.Jar.SetCookies(u, authState.Cookies)
-	a.fkey = authState.Fkey
-	return nil
-}
-
-// Login performs the sequence of steps necessary to authenticate with the
-// Stack Exchange servers.
-func (a *Auth) Login() error {
-	loginURL, err := a.fetchLoginURL()
-	if err != nil {
-		return err
-	}
-	networkFkey, err := a.fetchNetworkFkey(loginURL)
-	if err != nil {
-		return err
-	}
-	authURL, err := a.submitLoginForm(networkFkey)
-	if err != nil {
-		return err
-	}
-	if err := a.completeLogin(authURL); err != nil {
-		return err
-	}
-	chatFkey, err := a.fetchChatFkey()
-	if err != nil {
-		return err
-	}
-	a.fkey = chatFkey
-	return nil
-}
-
-// Save returns the current login state in preparation for serialization.
-func (a *Auth) Save() (*AuthState, error) {
-	u, err := url.Parse("https://chat.stackexchange.com")
-	if err != nil {
-		return nil, err
-	}
-	return &AuthState{
-		Cookies: a.client.Jar.Cookies(u),
-		Fkey:    a.fkey,
-	}, nil
 }

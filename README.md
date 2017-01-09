@@ -7,32 +7,25 @@ The [Stack Exchange chat network](http://chat.stackexchange.com) does not provid
 
 ### Usage
 
-To use the package, simply import it:
+To use the package, begin by importing it:
 
     import "github.com/nathan-osman/go-sechat"
 
-### Authentication
+In order to make requests, create a `Conn` object and invoke its `Connect()` method:
 
-In order to make authenticated requests, create an `Auth` object and invoke its `Login()` method:
-
-    a, _ := sechat.NewAuth("email", "password")
-    if err := a.Login(); err != nil {
-        // process login error
+    c, err := sechat.New("email@example.com", "passw0rd", 1)
+    if err != nil {
+        // handle error
     }
-
-Once logged in, the `Save()` method can be used to obtain a serializable object. This can later be passed to `Load()` to restore the authentication data:
-
-    s, _ := a.Save()
-    // ...
-    // do something with s, such as saving to a file
-    // ...
-    a.Load(s)
+    if err := c.Connect(); err != nil {
+        // handle error
+    }
+    defer c.Close()
 
 ### Posting Messages
 
-To post a message, create an instance of `Conn` and invoke `Send()`:
+To post a message, simply invoke `Send()`:
 
-    c, _ := sechat.NewConn(auth)
-    c.Send(201, "Testing go-sechat...")
-
-`NewConn` expects a valid `Auth` to be passed as the first parameter. `Send()` expects the room ID and the actual message to send.
+    if err := c.Send(201, "Testing go-sechat..."); err != nil {
+        // handle error
+    }

@@ -2,32 +2,56 @@ package sechat
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
+
+	"github.com/gorilla/websocket"
 )
 
-// Conn respresents a connection to the Stack Exchange chat network suitable
-// for sending requests. This includes posting messages, starring messages,
-// etc.
+// Conn represents a connection to the Stack Exchange chat network. HTTP
+// requests are used to trigger actions and websockets are used for event
+// notifications.
 type Conn struct {
-	auth *Auth
+	client   *http.Client
+	conn     *websocket.Conn
+	email    string
+	password string
+	fkey     string
+	room     int
 }
 
-// NewConn creates a new connection from the provided authentication object.
-func NewConn(auth *Auth) *Conn {
-	return &Conn{
-		auth: auth,
+// New creates a new Conn instance in the disconnected state.
+func New(email, password string, room int) (*Conn, error) {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
 	}
+	return &Conn{
+		client: &http.Client{
+			Jar: jar,
+		},
+		email:    email,
+		password: password,
+		room:     room,
+	}, nil
 }
 
-// Send posts the specified message to the specified room. The ID of the new
-// message is returned.
+// Connect establishes a connection with the chat server.
+func (c *Conn) Connect() error {
+	return c.auth()
+}
+
+// Send posts the specified message to the specified room.
 func (c *Conn) Send(room int, text string) error {
-	err := c.auth.post(
+	return c.postForm(
 		fmt.Sprintf("/chats/%d/messages/new", room),
-		paramMap{"text": text},
+		&url.Values{"text": {text}},
 		nil,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
+}
+
+// Close disconnects the websocket and shuts down the connection.
+func (c *Conn) Close() {
+	c.conn.Close()
 }
