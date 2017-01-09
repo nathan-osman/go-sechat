@@ -22,6 +22,14 @@ In order to make requests, create a `Conn` object and invoke its `Connect()` met
     }
     defer c.Close()
 
+### Receiving Events
+
+To receive events from the chat server, simply receive from the `Events` channel in `Conn`:
+
+    for e := range c.Events {
+        // e is of type *Event
+    }
+
 ### Posting Messages
 
 To post a message, simply invoke `Send()`:

@@ -13,6 +13,8 @@ import (
 // requests are used to trigger actions and websockets are used for event
 // notifications.
 type Conn struct {
+	Events   chan *Event
+	closed   chan bool
 	client   *http.Client
 	conn     *websocket.Conn
 	email    string
@@ -28,6 +30,8 @@ func New(email, password string, room int) (*Conn, error) {
 		return nil, err
 	}
 	return &Conn{
+		Events: make(chan *Event),
+		closed: make(chan bool),
 		client: &http.Client{
 			Jar: jar,
 		},
@@ -39,7 +43,13 @@ func New(email, password string, room int) (*Conn, error) {
 
 // Connect establishes a connection with the chat server.
 func (c *Conn) Connect() error {
-	return c.auth()
+	if err := c.auth(); err != nil {
+		return err
+	}
+	if err := c.connectWebSocket(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Send posts the specified message to the specified room.
@@ -54,4 +64,5 @@ func (c *Conn) Send(room int, text string) error {
 // Close disconnects the websocket and shuts down the connection.
 func (c *Conn) Close() {
 	c.conn.Close()
+	<-c.closed
 }
