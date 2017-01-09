@@ -52,6 +52,25 @@ func (c *Conn) Connect() error {
 	return nil
 }
 
+// Join listens for events in the specified room in addition to those already
+// joined.
+func (c *Conn) Join(room int) error {
+	return c.postForm(
+		"/events",
+		&url.Values{fmt.Sprintf("r%d", room): {"999999999999"}},
+		nil,
+	)
+}
+
+// Leave stops listening for events in the specified room.
+func (c *Conn) Leave(room int) error {
+	return c.postForm(
+		fmt.Sprintf("/chats/leave/%d", room),
+		&url.Values{"quiet": {"true"}},
+		nil,
+	)
+}
+
 // Send posts the specified message to the specified room.
 func (c *Conn) Send(room int, text string) error {
 	return c.postForm(
