@@ -1,7 +1,9 @@
 package sechat
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
@@ -17,6 +19,9 @@ var (
 	errAuth        = errors.New("unable to find auth URL")
 	errUrl         = errors.New("incomplete login (invalid credentials)")
 )
+
+type paramMap map[string]string
+type returnMap map[string]interface{}
 
 // Auth contains the information necessary to login to the Stack Exchange chat
 // network. Currently, only Stack Exchange credentials are accepted (OpenID is
@@ -162,6 +167,38 @@ func (a *Auth) fetchChatFkey() (string, error) {
 		return "", errChatFkey
 	}
 	return fkey, nil
+}
+
+// post sends a POST request to the specified path with the specified
+// parameters. This helps eliminate a lot of common code.
+func (a *Auth) post(path string, params paramMap, reply interface{}) error {
+	form := &url.Values{}
+	form.Set("fkey", a.fkey)
+	for key, value := range params {
+		form.Set(key, value)
+	}
+	request, err := http.NewRequest(
+		http.MethodPost,
+		fmt.Sprintf("http://chat.stackexchange.com%s", path),
+		strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response, err := a.client.Do(request)
+	if err != nil {
+		return err
+	}
+	if reply != nil {
+		if err := json.NewDecoder(response.Body).Decode(reply); err != nil {
+			return err
+		}
+	}
+	if response.StatusCode != http.StatusOK {
+		return errors.New(response.Status)
+	}
+	return nil
 }
 
 // NewAuth creates an object that can be used to issue authenticated requests
