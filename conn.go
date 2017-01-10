@@ -1,13 +1,27 @@
 package sechat
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"regexp"
+	"strconv"
 
 	"github.com/gorilla/websocket"
 )
+
+const (
+	AccessReadWrite = "read-write"
+	AccessReadOnly  = "read-only"
+	AccessRequest   = "request"
+)
+
+var ErrRoomID = errors.New("unable to find room ID")
+
+// roomRegexp matches a "room" URL.
+var roomRegexp = regexp.MustCompile(`^(?:https?://chat.stackexchange.com)?/rooms(?:/info)?/(\d+)`)
 
 // Conn represents a connection to the Stack Exchange chat network. HTTP
 // requests are used to trigger actions and websockets are used for event
@@ -29,16 +43,23 @@ func New(email, password string, room int) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Conn{
+	c := &Conn{
 		Events: make(chan *Event),
 		closed: make(chan bool),
 		client: &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if roomRegexp.MatchString(req.URL.String()) {
+					return http.ErrUseLastResponse
+				}
+				return nil
+			},
 			Jar: jar,
 		},
 		email:    email,
 		password: password,
 		room:     room,
-	}, nil
+	}
+	return c, nil
 }
 
 // Connect establishes a connection with the chat server.
@@ -55,29 +76,78 @@ func (c *Conn) Connect() error {
 // Join listens for events in the specified room in addition to those already
 // joined.
 func (c *Conn) Join(room int) error {
-	return c.postForm(
+	_, err := c.postForm(
 		"/events",
 		&url.Values{fmt.Sprintf("r%d", room): {"999999999999"}},
-		nil,
 	)
+	return err
 }
 
 // Leave stops listening for events in the specified room.
 func (c *Conn) Leave(room int) error {
-	return c.postForm(
+	_, err := c.postForm(
 		fmt.Sprintf("/chats/leave/%d", room),
 		&url.Values{"quiet": {"true"}},
-		nil,
+	)
+	return err
+}
+
+// newRoom eliminates the redundant code in NewRoom and NewRoomWithUser.
+func (c *Conn) newRoom(path string, data *url.Values) (int, error) {
+	res, err := c.postForm(path, data)
+	if err != nil {
+		return 0, err
+	}
+	m := roomRegexp.FindStringSubmatch(res.Header.Get("Location"))
+	if m == nil {
+		return 0, ErrRoomID
+	}
+	return c.atoi(m[1]), nil
+}
+
+// NewRoom creates a new room with the specified parameters. defaultAccess
+// should normally be set to AccessReadWrite.
+func (c *Conn) NewRoom(name, description, host, defaultAccess string) (int, error) {
+	return c.newRoom(
+		"/rooms/save",
+		&url.Values{
+			"name":          {name},
+			"description":   {description},
+			"host":          {host},
+			"defaultAccess": {defaultAccess},
+			"noDupeCheck":   {"true"},
+		},
+	)
+}
+
+// NewRoomWithUser creates a new room with the specified name and invites the
+// specifed user to the new room. The ID of the new room is returned.
+func (c *Conn) NewRoomWithUser(user int, name string) (int, error) {
+	return c.newRoom(
+		"/rooms/pairoff",
+		&url.Values{
+			"withUserId": {strconv.Itoa(user)},
+			"name":       {name},
+		},
 	)
 }
 
 // Send posts the specified message to the specified room.
 func (c *Conn) Send(room int, text string) error {
-	return c.postForm(
+	_, err := c.postForm(
 		fmt.Sprintf("/chats/%d/messages/new", room),
 		&url.Values{"text": {text}},
-		nil,
 	)
+	return err
+}
+
+// Star stars the specified message.
+func (c *Conn) Star(message int) error {
+	_, err := c.postForm(
+		fmt.Sprintf("/messages/%d/star", message),
+		&url.Values{},
+	)
+	return err
 }
 
 // Close disconnects the websocket and shuts down the connection.

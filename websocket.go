@@ -49,13 +49,15 @@ func (c *Conn) run() {
 // server. An event loop is created in a separate goroutine to feed new events
 // into the event channel.
 func (c *Conn) connectWebSocket() error {
-	wsa := wsAuthReply{}
-	err := c.postForm(
+	res, err := c.postForm(
 		"/ws-auth",
 		&url.Values{"roomid": {strconv.Itoa(c.room)}},
-		&wsa,
 	)
 	if err != nil {
+		return err
+	}
+	wsa := wsAuthReply{}
+	if json.NewDecoder(res.Body).Decode(&wsa); err != nil {
 		return err
 	}
 	// A custom dialer is used so that cookies are included
