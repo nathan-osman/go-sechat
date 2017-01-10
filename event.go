@@ -47,3 +47,9 @@ type Event struct {
 	UserID       int    `json:"user_id"`
 	UserName     string `json:"user_name"`
 }
+
+// IsMention determines whether the event mentions the user or not.
+func (e *Event) IsMention() bool {
+	return e.EventType == EventUserMentioned ||
+		e.EventType == EventMessageReply
+}
