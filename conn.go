@@ -132,6 +132,18 @@ func (c *Conn) NewRoomWithUser(user int, name string) (int, error) {
 	)
 }
 
+// Invite sends an invitation to a user inviting them to join a room.
+func (c *Conn) Invite(user, room int) error {
+	_, err := c.postForm(
+		"/users/invite",
+		&url.Values{
+			"UserId": {strconv.Itoa(user)},
+			"RoomId": {strconv.Itoa(room)},
+		},
+	)
+	return err
+}
+
 // Send posts the specified message to the specified room.
 func (c *Conn) Send(room int, text string) error {
 	_, err := c.postForm(
