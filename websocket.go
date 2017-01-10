@@ -31,13 +31,18 @@ func (c *Conn) run() {
 		if err := json.NewDecoder(r).Decode(&msg); err != nil {
 			continue
 		}
+		// Create a set of message IDs to avoid sending duplicates
+		msgIDs := map[int]struct{}{}
 		for _, v := range msg {
 			room := &wsRoom{}
 			if err := json.Unmarshal(v, &room); err != nil {
 				continue
 			}
-			for _, event := range room.Events {
-				c.Events <- event
+			for _, e := range room.Events {
+				if _, exists := msgIDs[e.ID]; !exists {
+					c.Events <- e
+					msgIDs[e.ID] = struct{}{}
+				}
 			}
 		}
 	}
