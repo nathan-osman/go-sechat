@@ -153,6 +153,14 @@ func (c *Conn) Send(room int, text string) error {
 	return err
 }
 
+// Reply sends a reply for the specified event.
+func (c *Conn) Reply(e *Event, text string) error {
+	return c.Send(
+		e.RoomID,
+		fmt.Sprintf(":%d %s", e.MessageID, text),
+	)
+}
+
 // Star stars the specified message.
 func (c *Conn) Star(message int) error {
 	_, err := c.postForm(
