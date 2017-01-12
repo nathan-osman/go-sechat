@@ -1,5 +1,9 @@
 package sechat
 
+import (
+	"fmt"
+)
+
 const (
 	EventMessagePosted           = 1
 	EventMessageEdited           = 2
@@ -52,4 +56,10 @@ type Event struct {
 func (e *Event) IsMention() bool {
 	return e.EventType == EventUserMentioned ||
 		e.EventType == EventMessageReply
+}
+
+// FormatReply generates a reply to a message with the specified content.
+func (e *Event) FormatReply(format string, a ...interface{}) string {
+	return fmt.Sprintf(":%d ", e.MessageID) +
+		fmt.Sprintf(format, a...)
 }
