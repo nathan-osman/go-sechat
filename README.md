@@ -22,6 +22,35 @@ In order to make requests, create a `Conn` object and invoke its `Connect()` met
     }
     defer c.Close()
 
+### Interacting with Rooms
+
+To join an additional room, use the `Join()` method:
+
+    // Join the Ask Ubuntu General Room (#201)
+    if err := c.Join(201); err != nil {
+        // handle error
+    }
+
+To leave, use the (appropriately named) `Leave()` method:
+
+    if err := c.Leave(201); err != nil {
+        // handle error
+    }
+
+The `NewRoom()` method can be used to create new rooms:
+
+    r, err := c.NewRoom(
+        "Room Name",
+        "Room description",
+        "askubuntu.com",        // room host
+        sechat.AccessReadWrite, // access
+    )
+    if err != nil {
+        // handle error
+    }
+
+In the example above, `r` is an `int` containing the ID of the new room that was created.
+
 ### Receiving Events
 
 To receive events from the chat server, simply receive from the `Events` channel in `Conn`:
@@ -35,5 +64,11 @@ To receive events from the chat server, simply receive from the `Events` channel
 To post a message, simply invoke `Send()`:
 
     if err := c.Send(201, "Testing go-sechat..."); err != nil {
+        // handle error
+    }
+
+If the message is in response to an earlier event, the `Reply()` method is also available:
+
+    if err := c.Reply(e, "Reply to event"); err != nil {
         // handle error
     }
