@@ -1,5 +1,12 @@
 package sechat
 
+import (
+	"regexp"
+	"strings"
+
+	"github.com/PuerkitoBio/goquery"
+)
+
 const (
 	EventMessagePosted           = 1
 	EventMessageEdited           = 2
@@ -28,6 +35,10 @@ const (
 	EventUserNameOrAvatarChanged = 34
 )
 
+var mentionRegexp = regexp.MustCompile(
+	`^@[\p{L}\d_]+`,
+)
+
 // Event represents an individual chat event received from the server. Note
 // that not all event types use all members of this struct.
 type Event struct {
@@ -46,10 +57,21 @@ type Event struct {
 	TimeStamp    int    `json:"time_stamp"`
 	UserID       int    `json:"user_id"`
 	UserName     string `json:"user_name"`
+
+	// A few additional values are precomputed to simplify analysis later on
+	IsMention   bool
+	TextContent string
 }
 
-// IsMention determines whether the event mentions the user or not.
-func (e *Event) IsMention() bool {
-	return e.EventType == EventUserMentioned ||
+// precompute fills in the precomputed members.
+func (e *Event) precompute() {
+	e.IsMention = e.EventType == EventUserMentioned ||
 		e.EventType == EventMessageReply
+	if d, err := goquery.NewDocumentFromReader(
+		strings.NewReader(e.Content),
+	); err == nil {
+		e.TextContent = strings.TrimSpace(
+			mentionRegexp.ReplaceAllString(d.Text(), ""),
+		)
+	}
 }

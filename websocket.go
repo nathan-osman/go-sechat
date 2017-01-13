@@ -40,6 +40,7 @@ func (c *Conn) run() {
 			}
 			for _, e := range room.Events {
 				if _, exists := msgIDs[e.ID]; !exists {
+					e.precompute()
 					c.Events <- e
 					msgIDs[e.ID] = struct{}{}
 				}
