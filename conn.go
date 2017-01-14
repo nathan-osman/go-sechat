@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"strconv"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -27,50 +28,55 @@ var roomRegexp = regexp.MustCompile(`^(?:https?://chat.stackexchange.com)?/rooms
 // requests are used to trigger actions and websockets are used for event
 // notifications.
 type Conn struct {
-	Events   chan *Event
-	closed   chan bool
+	Events   <-chan *Event
+	closeCh  chan bool
 	client   *http.Client
 	conn     *websocket.Conn
+	mutex    sync.Mutex
 	email    string
 	password string
 	fkey     string
 	room     int
 }
 
-// New creates a new Conn instance in the disconnected state.
+// atoi removes the error handling from Atoi() and ensures a value is always
+// returned.
+func atoi(s string) int {
+	v, _ := strconv.Atoi(s)
+	return v
+}
+
+// checkRedirect prevents a redirect from taking place if the URL matches a
+// room URL. This is necessary for the new room methods.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if roomRegexp.MatchString(req.URL.String()) {
+		return http.ErrUseLastResponse
+	}
+	return nil
+}
+
+// New creates a new Conn instance.
 func New(email, password string, room int) (*Conn, error) {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
 	}
-	c := &Conn{
-		Events: make(chan *Event),
-		closed: make(chan bool),
-		client: &http.Client{
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if roomRegexp.MatchString(req.URL.String()) {
-					return http.ErrUseLastResponse
-				}
-				return nil
+	var (
+		ch = make(chan *Event)
+		c  = &Conn{
+			Events:  ch,
+			closeCh: make(chan bool),
+			client: &http.Client{
+				CheckRedirect: checkRedirect,
+				Jar:           jar,
 			},
-			Jar: jar,
-		},
-		email:    email,
-		password: password,
-		room:     room,
-	}
+			email:    email,
+			password: password,
+			room:     room,
+		}
+	)
+	go c.run(ch)
 	return c, nil
-}
-
-// Connect establishes a connection with the chat server.
-func (c *Conn) Connect() error {
-	if err := c.auth(); err != nil {
-		return err
-	}
-	if err := c.connectWebSocket(); err != nil {
-		return err
-	}
-	return nil
 }
 
 // Join listens for events in the specified room in addition to those already
@@ -102,7 +108,7 @@ func (c *Conn) newRoom(path string, data *url.Values) (int, error) {
 	if m == nil {
 		return 0, ErrRoomID
 	}
-	return c.atoi(m[1]), nil
+	return atoi(m[1]), nil
 }
 
 // NewRoom creates a new room with the specified parameters. defaultAccess
@@ -172,6 +178,14 @@ func (c *Conn) Star(message int) error {
 
 // Close disconnects the websocket and shuts down the connection.
 func (c *Conn) Close() {
-	c.conn.Close()
-	<-c.closed
+	// Indicate that the connection is closing
+	c.closeCh <- true
+	// If the websocket is connected, close it
+	c.mutex.Lock()
+	if c.conn != nil {
+		c.conn.Close()
+	}
+	c.mutex.Unlock()
+	// Wait for the loop to finish
+	<-c.closeCh
 }

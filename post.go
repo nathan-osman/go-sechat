@@ -5,16 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
-
-// atoi removes the error handling from Atoi() and ensures a value is always
-// returned.
-func (c *Conn) atoi(s string) int {
-	v, _ := strconv.Atoi(s)
-	return v
-}
 
 // postForm is a utility method for sending a POST request with form data. The
 // fkey is automatically added to the form data sent.

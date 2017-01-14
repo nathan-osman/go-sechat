@@ -11,13 +11,10 @@ To use the package, begin by importing it:
 
     import "github.com/nathan-osman/go-sechat"
 
-In order to make requests, create a `Conn` object and invoke its `Connect()` method:
+In order to make requests, create a `Conn` object:
 
     c, err := sechat.New("email@example.com", "passw0rd", 1)
     if err != nil {
-        // handle error
-    }
-    if err := c.Connect(); err != nil {
         // handle error
     }
     defer c.Close()
