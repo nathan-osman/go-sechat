@@ -104,6 +104,39 @@ func (c *Conn) submitLoginForm(fkey string) (string, error) {
 	return c.fetchAuthURL(res)
 }
 
+// confirmOpenID submits the form that confirms the user wishes to log in with
+// their Stack Exchange OpenID. This is only necessary for certain accounts.
+func (c *Conn) confirmOpenID(res *http.Response) error {
+	doc, err := goquery.NewDocumentFromReader(res.Body)
+	if err != nil {
+		return err
+	}
+	var (
+		session = doc.Find("input[name=session]").AttrOr("value", "")
+		fkey    = doc.Find("input[name=fkey]").AttrOr("value", "")
+	)
+	form := &url.Values{}
+	form.Set("session", session)
+	form.Set("fkey", fkey)
+	req, err := http.NewRequest(
+		http.MethodPost,
+		"https://openid.stackexchange.com/account/prompt/submit",
+		strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err = c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	if res.Request.URL.Path != "/" {
+		return ErrIncomplete
+	}
+	return nil
+}
+
 // completeLogin finishes the login process.
 func (c *Conn) completeLogin(authUrl string) error {
 	req, err := http.NewRequest(http.MethodGet, authUrl, nil)
@@ -114,10 +147,14 @@ func (c *Conn) completeLogin(authUrl string) error {
 	if err != nil {
 		return err
 	}
-	if res.Request.URL.Path != "/" {
+	switch res.Request.URL.Path {
+	case "/account/prompt":
+		return c.confirmOpenID(res)
+	case "/":
+		return nil
+	default:
 		return ErrIncomplete
 	}
-	return nil
 }
 
 // fetchChatFkey loads the home page for chat in order to retrieve the fkey
