@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -32,6 +33,7 @@ type Conn struct {
 	closeCh  chan bool
 	client   *http.Client
 	conn     *websocket.Conn
+	log      *logrus.Entry
 	mutex    sync.Mutex
 	email    string
 	password string
@@ -70,6 +72,7 @@ func New(email, password string, room int) (*Conn, error) {
 				CheckRedirect: checkRedirect,
 				Jar:           jar,
 			},
+			log:      logrus.WithField("context", "sechat"),
 			email:    email,
 			password: password,
 			room:     room,

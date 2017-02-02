@@ -15,15 +15,19 @@ type wsRoom struct {
 func (c *Conn) run(ch chan<- *Event) {
 	defer close(c.closeCh)
 	defer close(ch)
+	defer c.log.Info("closing event channel")
 	for {
 		// Use the stored credentials to authenticate
 		if err := c.auth(); err != nil {
+			c.log.Error(err)
 			goto retry
 		}
 		// Connect to to the websocket server
 		if err := c.connectWebSocket(); err != nil {
+			c.log.Error(err)
 			goto retry
 		}
+		c.log.Info("connected to WebSocket")
 		// Event receiving loop
 	loop:
 		for {
@@ -35,6 +39,7 @@ func (c *Conn) run(ch chan<- *Event) {
 				case <-c.closeCh:
 					return
 				default:
+					c.log.Error(err)
 					break loop
 				}
 			}
@@ -61,6 +66,7 @@ func (c *Conn) run(ch chan<- *Event) {
 		}
 	retry:
 		// TODO: log a "disconnected - retrying" message
+		c.log.Info("reconnecting in 30 seconds")
 		select {
 		case <-time.After(30 * time.Second):
 		case <-c.closeCh:
