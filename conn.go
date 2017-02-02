@@ -31,6 +31,7 @@ var roomRegexp = regexp.MustCompile(`^(?:https?://chat.stackexchange.com)?/rooms
 type Conn struct {
 	Events   <-chan *Event
 	closeCh  chan bool
+	closedCh chan bool
 	client   *http.Client
 	conn     *websocket.Conn
 	log      *logrus.Entry
@@ -66,8 +67,9 @@ func New(email, password string, room int) (*Conn, error) {
 	var (
 		ch = make(chan *Event)
 		c  = &Conn{
-			Events:  ch,
-			closeCh: make(chan bool),
+			Events:   ch,
+			closeCh:  make(chan bool),
+			closedCh: make(chan bool),
 			client: &http.Client{
 				CheckRedirect: checkRedirect,
 				Jar:           jar,
@@ -182,7 +184,7 @@ func (c *Conn) Star(message int) error {
 // Close disconnects the websocket and shuts down the connection.
 func (c *Conn) Close() {
 	// Indicate that the connection is closing
-	c.closeCh <- true
+	close(c.closeCh)
 	// If the websocket is connected, close it
 	c.mutex.Lock()
 	if c.conn != nil {
@@ -190,5 +192,5 @@ func (c *Conn) Close() {
 	}
 	c.mutex.Unlock()
 	// Wait for the loop to finish
-	<-c.closeCh
+	<-c.closedCh
 }

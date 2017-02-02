@@ -13,7 +13,7 @@ type wsRoom struct {
 // run is the main loop. It continually connects to the chat server, sleeping,
 // and reconnecting upon error. It runs continually until stopped.
 func (c *Conn) run(ch chan<- *Event) {
-	defer close(c.closeCh)
+	defer close(c.closedCh)
 	defer close(ch)
 	defer c.log.Info("closing event channel")
 	for {
