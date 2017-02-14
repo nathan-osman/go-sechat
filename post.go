@@ -42,6 +42,7 @@ func (c *Conn) postForm(path string, data *url.Values) (*http.Response, error) {
 					m := conflictRegexp.FindStringSubmatch(string(b))
 					if len(m) != 0 {
 						i, _ := strconv.Atoi(m[0])
+						c.log.Debugf("retrying %s in %d second(s)", path, i)
 						time.Sleep(time.Duration(i) * time.Second)
 						continue
 					}
