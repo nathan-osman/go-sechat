@@ -19,7 +19,7 @@ var (
 
 // fetchLoginURL retrieves the URL of the page that contains the login form.
 func (c *Conn) fetchLoginURL() (string, error) {
-	req, err := http.NewRequest(
+	req, err := c.newRequest(
 		http.MethodGet, "https://stackexchange.com/users/signin", nil,
 	)
 	if err != nil {
@@ -39,7 +39,7 @@ func (c *Conn) fetchLoginURL() (string, error) {
 // fetchNetworkFkey retrieves the network fkey from the login form so that it
 // can be submitted during the login process.
 func (c *Conn) fetchNetworkFkey(url string) (string, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := c.newRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +86,7 @@ func (c *Conn) submitLoginForm(fkey string) (string, error) {
 	form.Set("password", c.password)
 	form.Set("affId", "11")
 	form.Set("fkey", fkey)
-	req, err := http.NewRequest(
+	req, err := c.newRequest(
 		http.MethodPost,
 		"https://openid.stackexchange.com/affiliate/form/login/submit",
 		strings.NewReader(form.Encode()),
@@ -118,7 +118,7 @@ func (c *Conn) confirmOpenID(res *http.Response) error {
 	form := &url.Values{}
 	form.Set("session", session)
 	form.Set("fkey", fkey)
-	req, err := http.NewRequest(
+	req, err := c.newRequest(
 		http.MethodPost,
 		"https://openid.stackexchange.com/account/prompt/submit",
 		strings.NewReader(form.Encode()),
@@ -139,7 +139,7 @@ func (c *Conn) confirmOpenID(res *http.Response) error {
 
 // completeLogin finishes the login process.
 func (c *Conn) completeLogin(authUrl string) error {
-	req, err := http.NewRequest(http.MethodGet, authUrl, nil)
+	req, err := c.newRequest(http.MethodGet, authUrl, nil)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (c *Conn) completeLogin(authUrl string) error {
 // fetchChatFkey loads the home page for chat in order to retrieve the fkey
 // that is required to accompany every authenticated request.
 func (c *Conn) fetchChatFkey() (string, error) {
-	req, err := http.NewRequest(
+	req, err := c.newRequest(
 		http.MethodGet,
 		"https://chat.stackexchange.com",
 		nil,
