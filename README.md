@@ -19,6 +19,12 @@ In order to make requests, create a `Conn` object:
     }
     defer c.Close()
 
+Since authentication and connection are done asynchronously, waiting for them to complete is highly recommended:
+
+    if c.WaitForConnected() {
+        // do stuff
+    }
+
 ### Interacting with Rooms
 
 To join an additional room, use the `Join()` method:
@@ -32,6 +38,14 @@ To leave, use the (appropriately named) `Leave()` method:
 
     if err := c.Leave(201); err != nil {
         // handle error
+    }
+
+To obtain a list of users in the room, use `UsersInRoom()`:
+
+    if users, err := c.UsersInRoom(201); err == nil {
+        for _, u := range users {
+            fmt.Printf("User: %s\n", u.Name)
+        }
     }
 
 The `NewRoom()` method can be used to create new rooms:
