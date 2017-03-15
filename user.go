@@ -10,7 +10,10 @@ import (
 	"strings"
 )
 
-var ErrInvalidJavaScript = errors.New("invalid JavaScript (no access to room)")
+var (
+	ErrInvalidUserResponse = errors.New("invalid user response")
+	ErrInvalidJavaScript   = errors.New("invalid JavaScript (no access to room)")
+)
 
 // User provides information about a chat user, such as their display name,
 // moderator status, etc.
@@ -62,6 +65,19 @@ func (c *Conn) Users(users []int, room int) ([]*User, error) {
 		return nil, err
 	}
 	return v.Users, nil
+}
+
+// User retrieves information for a single user. If you need to retrieve
+// information for multiple users, consider using the Users method instead.
+func (c *Conn) User(user int, room int) (*User, error) {
+	users, err := c.Users([]int{user}, room)
+	if err != nil {
+		return nil, err
+	}
+	if len(users) != 1 {
+		return nil, ErrInvalidUserResponse
+	}
+	return users[0], nil
 }
 
 // UsersInRoom retrieves a list of users in the specified room.
