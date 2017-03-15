@@ -10,11 +10,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// wsAuthReply is returned by the server when obtaining the websocket URL.
-type wsAuthReply struct {
-	URL string `json:"url"`
-}
-
 // connectWebSocket attempts to establish the websocket connection to the chat
 // server and return the new connection.
 func (c *Conn) connectWebSocket() error {
@@ -25,8 +20,10 @@ func (c *Conn) connectWebSocket() error {
 	if err != nil {
 		return err
 	}
-	wsa := wsAuthReply{}
-	if json.NewDecoder(res.Body).Decode(&wsa); err != nil {
+	var v struct {
+		URL string `json:"url"`
+	}
+	if json.NewDecoder(res.Body).Decode(&v); err != nil {
 		return err
 	}
 	// A custom dialer is used so that cookies are included
@@ -35,7 +32,7 @@ func (c *Conn) connectWebSocket() error {
 		Jar:   c.client.Jar,
 	}
 	conn, _, err := dialer.Dial(
-		fmt.Sprintf("%s?l=999999999999", wsa.URL),
+		fmt.Sprintf("%s?l=999999999999", v.URL),
 		http.Header{"Origin": {"https://chat.stackexchange.com"}},
 	)
 	if err != nil {
