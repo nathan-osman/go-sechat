@@ -22,6 +22,10 @@ const (
 
 var ErrRoomID = errors.New("unable to find room ID")
 
+// forceRedirect is an internal header that prevents redirects from being
+// inhibited.
+const forceRedirect = "X-Force-Redirect"
+
 // roomRegexp matches a "room" URL.
 var roomRegexp = regexp.MustCompile(`^(?:https?://chat.stackexchange.com)?/rooms(?:/info)?/(\d+)`)
 
@@ -52,7 +56,8 @@ func atoi(s string) int {
 // checkRedirect prevents a redirect from taking place if the URL matches a
 // room URL. This is necessary for the new room methods.
 func checkRedirect(req *http.Request, via []*http.Request) error {
-	if roomRegexp.MatchString(req.URL.String()) {
+	if len(via[0].Header.Get(forceRedirect)) == 0 &&
+		roomRegexp.MatchString(req.URL.String()) {
 		return http.ErrUseLastResponse
 	}
 	return nil

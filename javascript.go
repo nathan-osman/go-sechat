@@ -24,6 +24,7 @@ func (c *Conn) parseJavaScript(urlStr string) (*ast.Program, error) {
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set(forceRedirect, "1")
 	res, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -50,6 +51,15 @@ func (c *Conn) parseIdentifier(exp ast.Expression) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// parseArray returns a list of expressions in an array.
+func (c *Conn) parseArray(exp ast.Expression) ([]ast.Expression, bool) {
+	arr, ok := exp.(*ast.ArrayLiteral)
+	if !ok {
+		return nil, false
+	}
+	return arr.Value, true
 }
 
 // parseMap parses the provided expression as a simple map.
