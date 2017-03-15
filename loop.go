@@ -63,7 +63,11 @@ func (c *Conn) run(ch chan<- *Event) {
 				for _, e := range room.Events {
 					if _, exists := msgIDs[e.ID]; !exists {
 						e.precompute()
-						ch <- e
+						// Use non-blocking send
+						select {
+						case ch <- e:
+						default:
+						}
 						msgIDs[e.ID] = struct{}{}
 					}
 				}
