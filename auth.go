@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -13,8 +14,11 @@ import (
 var (
 	ErrNetworkFkey = errors.New("unable to find network fkey")
 	ErrChatFkey    = errors.New("unable to find chat fkey")
+	ErrChatUserID  = errors.New("unable to find user ID")
 	ErrAuthURL     = errors.New("unable to find auth URL")
 	ErrIncomplete  = errors.New("incomplete login (invalid credentials)")
+
+	userIDRegexp = regexp.MustCompile(`^/users/(\d+)`)
 )
 
 // fetchLoginURL retrieves the URL of the page that contains the login form.
@@ -159,28 +163,36 @@ func (c *Conn) completeLogin(authUrl string) error {
 
 // fetchChatFkey loads the home page for chat in order to retrieve the fkey
 // that is required to accompany every authenticated request.
-func (c *Conn) fetchChatFkey() (string, error) {
+func (c *Conn) fetchChatFkeyAndUserID() (string, int, error) {
 	req, err := c.newRequest(
 		http.MethodGet,
 		"https://chat.stackexchange.com",
 		nil,
 	)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	res, err := c.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	doc, err := goquery.NewDocumentFromReader(res.Body)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	fkey, ok := doc.Find("#fkey").Attr("value")
 	if !ok {
-		return "", ErrChatFkey
+		return "", 0, ErrChatFkey
 	}
-	return fkey, nil
+	userID, ok := doc.Find(".topbar-menu-links a").Attr("href")
+	if !ok {
+		return "", 0, ErrChatUserID
+	}
+	m := userIDRegexp.FindStringSubmatch(userID)
+	if m == nil {
+		return "", 0, ErrChatUserID
+	}
+	return fkey, atoi(m[1]), nil
 }
 
 // auth performs the steps necessary to authenticate against the chat server.
@@ -200,10 +212,11 @@ func (c *Conn) auth() error {
 	if err := c.completeLogin(authURL); err != nil {
 		return err
 	}
-	chatFkey, err := c.fetchChatFkey()
+	chatFkey, userID, err := c.fetchChatFkeyAndUserID()
 	if err != nil {
 		return err
 	}
 	c.fkey = chatFkey
+	c.user = userID
 	return nil
 }

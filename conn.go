@@ -45,6 +45,7 @@ type Conn struct {
 	password    string
 	fkey        string
 	room        int
+	user        int
 }
 
 // atoi removes the error handling from Atoi() and ensures a value is always
@@ -89,6 +90,11 @@ func New(email, password string, room int) (*Conn, error) {
 	)
 	go c.run(ch)
 	return c, nil
+}
+
+// UserID returns the chat ID of the current user.
+func (c *Conn) UserID() int {
+	return c.user
 }
 
 // WaitForConnected waits until authentication is complete and the websocket is
