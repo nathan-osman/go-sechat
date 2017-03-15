@@ -33,17 +33,18 @@ var roomRegexp = regexp.MustCompile(`^(?:https?://chat.stackexchange.com)?/rooms
 // requests are used to trigger actions and websockets are used for event
 // notifications.
 type Conn struct {
-	Events   <-chan *Event
-	closeCh  chan bool
-	closedCh chan bool
-	client   *http.Client
-	conn     *websocket.Conn
-	log      *logrus.Entry
-	mutex    sync.Mutex
-	email    string
-	password string
-	fkey     string
-	room     int
+	Events      <-chan *Event
+	connectedCh chan bool
+	closeCh     chan bool
+	closedCh    chan bool
+	client      *http.Client
+	conn        *websocket.Conn
+	log         *logrus.Entry
+	mutex       sync.Mutex
+	email       string
+	password    string
+	fkey        string
+	room        int
 }
 
 // atoi removes the error handling from Atoi() and ensures a value is always
@@ -72,9 +73,10 @@ func New(email, password string, room int) (*Conn, error) {
 	var (
 		ch = make(chan *Event)
 		c  = &Conn{
-			Events:   ch,
-			closeCh:  make(chan bool),
-			closedCh: make(chan bool),
+			Events:      ch,
+			connectedCh: make(chan bool),
+			closeCh:     make(chan bool),
+			closedCh:    make(chan bool),
 			client: &http.Client{
 				CheckRedirect: checkRedirect,
 				Jar:           jar,
@@ -87,6 +89,12 @@ func New(email, password string, room int) (*Conn, error) {
 	)
 	go c.run(ch)
 	return c, nil
+}
+
+// WaitForConnected waits until authentication is complete and the websocket is
+// connected.
+func (c *Conn) WaitForConnected() bool {
+	return <-c.connectedCh
 }
 
 // Join listens for events in the specified room in addition to those already

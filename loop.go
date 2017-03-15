@@ -14,6 +14,7 @@ type wsRoom struct {
 // and reconnecting upon error. It runs continually until stopped.
 func (c *Conn) run(ch chan<- *Event) {
 	defer close(c.closedCh)
+	defer close(c.connectedCh)
 	defer close(ch)
 	defer c.log.Info("closing event channel")
 	for {
@@ -28,6 +29,10 @@ func (c *Conn) run(ch chan<- *Event) {
 			goto retry
 		}
 		c.log.Info("connected to WebSocket")
+		select {
+		case c.connectedCh <- true:
+		default:
+		}
 		// Event receiving loop
 	loop:
 		for {
@@ -65,7 +70,13 @@ func (c *Conn) run(ch chan<- *Event) {
 			}
 		}
 	retry:
-		// TODO: log a "disconnected - retrying" message
+		select {
+		case c.connectedCh <- false:
+		default:
+		}
+		if _, ok := <-c.closeCh; !ok {
+			return
+		}
 		c.log.Info("reconnecting in 30 seconds")
 		select {
 		case <-time.After(30 * time.Second):
