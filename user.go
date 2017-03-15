@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -15,21 +16,50 @@ var (
 	ErrInvalidJavaScript   = errors.New("invalid JavaScript (no access to room)")
 )
 
-// User provides information about a chat user, such as their display name,
-// moderator status, etc.
-type User struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	EmailHash   string `json:"email_hash"`
-	Reputation  int    `json:"reputation"`
-	IsModerator bool   `json:"is_moderator"`
-	IsOwner     bool   `json:"is_owner"`
-	LastPost    int    `json:"last_post"`
-	LastSeen    int    `json:"last_seen"`
+// Room provides information about a room that a user is currently present in.
+type Room struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	LastPost int    `json:"last_post"`
+	Activity int    `json:"activity"`
 }
 
-// mapToUser creates a user from an astMap. Interestingly, the fastest way to
-// do this is encode and then decode JSON.
+// Site describes a user's parent site.
+type Site struct {
+	Icon    string `json:"icon"`
+	Caption string `json:"caption"`
+}
+
+// InviteTarget describes a site that another user may be invited to.
+type InviteTarget struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// User provides information about a chat user, such as their display name,
+// moderator status, etc. Not every method that returns an instance of this
+// type populates all fields.
+type User struct {
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	EmailHash    string  `json:"email_hash"`
+	Reputation   int     `json:"reputation"`
+	IsModerator  bool    `json:"is_moderator"`
+	IsOwner      bool    `json:"is_owner"`
+	IsRegistered bool    `json:"is_registered"`
+	LastPost     int     `json:"last_post"`
+	LastSeen     int     `json:"last_seen"`
+	Rooms        []*Room `json:"rooms"`
+	UserMessage  string  `json:"user_message"`
+	ProfileURL   string  `json:"profileUrl"`
+	Site         *Site   `json:"site"`
+	Host         string  `json:"host"`
+	MayPairoff   bool    `json:"may_pairoff"`
+	Issues       int     `json:"issues"`
+}
+
+// mapToUser creates a user from an astMap. Interestingly, the easiest way to
+// do this is encode the map and then decode it as JSON.
 func mapToUser(m astMap) (*User, error) {
 	buff := &bytes.Buffer{}
 	if err := json.NewEncoder(buff).Encode(m); err != nil {
@@ -42,7 +72,29 @@ func mapToUser(m astMap) (*User, error) {
 	return user, nil
 }
 
-// Users retrieves information for the specified users.
+// User retrieves extended information for a specific user.
+func (c *Conn) User(user int) (*User, error) {
+	req, err := c.newRequest(
+		http.MethodGet,
+		fmt.Sprintf("https://chat.stackexchange.com/users/thumbs/%d", user),
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	u := &User{}
+	if err := json.NewDecoder(res.Body).Decode(u); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+// Users retrieves limited information for the specified users. Only the first
+// few fields in the User struct are filled in.
 func (c *Conn) Users(users []int, room int) ([]*User, error) {
 	usersStr := make([]string, len(users))
 	for i, user := range users {
@@ -67,20 +119,8 @@ func (c *Conn) Users(users []int, room int) ([]*User, error) {
 	return v.Users, nil
 }
 
-// User retrieves information for a single user. If you need to retrieve
-// information for multiple users, consider using the Users method instead.
-func (c *Conn) User(user int, room int) (*User, error) {
-	users, err := c.Users([]int{user}, room)
-	if err != nil {
-		return nil, err
-	}
-	if len(users) != 1 {
-		return nil, ErrInvalidUserResponse
-	}
-	return users[0], nil
-}
-
-// UsersInRoom retrieves a list of users in the specified room.
+// UsersInRoom retrieves a list of users in the specified room. Only the first
+// few fields in the User struct are filled in.
 func (c *Conn) UsersInRoom(room int) ([]*User, error) {
 	program, err := c.parseJavaScript(
 		fmt.Sprintf("https://chat.stackexchange.com/rooms/%d", room),
