@@ -48,6 +48,14 @@ To obtain a list of users in the room, use `UsersInRoom()`:
         }
     }
 
+To obtain a list of rooms that a user is in, use `Rooms()`:
+
+    if rooms, err := c.Rooms(1345); err == nil {
+        for _, r := range rooms {
+            log.Printf("Room: %s\n", r.Name)
+        }
+    }
+
 The `NewRoom()` method can be used to create new rooms:
 
     r, err := c.NewRoom(
