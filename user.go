@@ -95,7 +95,7 @@ func (c *Conn) User(user int) (*User, error) {
 
 // Users retrieves limited information for the specified users. Only the first
 // few fields in the User struct are filled in.
-func (c *Conn) Users(users []int, room int) ([]*User, error) {
+func (c *Conn) Users(room int, users []int) ([]*User, error) {
 	usersStr := make([]string, len(users))
 	for i, user := range users {
 		usersStr[i] = strconv.Itoa(user)
