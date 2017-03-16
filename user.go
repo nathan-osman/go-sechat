@@ -122,7 +122,7 @@ func (c *Conn) Users(users []int, room int) ([]*User, error) {
 // UsersInRoom retrieves a list of users in the specified room. Only the first
 // few fields in the User struct are filled in.
 func (c *Conn) UsersInRoom(room int) ([]*User, error) {
-	program, err := c.parseJavaScript(
+	program, err := c.parseJavaScriptFromPage(
 		fmt.Sprintf("https://chat.stackexchange.com/rooms/%d", room),
 	)
 	if err != nil {

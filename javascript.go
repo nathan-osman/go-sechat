@@ -14,12 +14,27 @@ type astCall struct {
 	Arguments []ast.Expression
 }
 
+// astAssignment stores a simple assignment.
+type astAssignment struct {
+	Name  string
+	Value interface{}
+}
+
 // astMap stores a simple object as a map.
 type astMap map[string]interface{}
 
 // parseJavaScript attempts to parse the JavaScript embedded on a page and
 // create an abstract syntax tree (AST) from it.
-func (c *Conn) parseJavaScript(urlStr string) (*ast.Program, error) {
+func (c *Conn) parseJavaScript(res *http.Response) (*ast.Program, error) {
+	doc, err := goquery.NewDocumentFromReader(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	return parser.ParseFile(nil, "", doc.Find("script").Text(), 0)
+}
+
+// parseJavaScriptFromPage loads the provided URL and parses it.
+func (c *Conn) parseJavaScriptFromPage(urlStr string) (*ast.Program, error) {
 	req, err := c.newRequest(http.MethodGet, urlStr, nil)
 	if err != nil {
 		return nil, err
@@ -29,11 +44,7 @@ func (c *Conn) parseJavaScript(urlStr string) (*ast.Program, error) {
 	if err != nil {
 		return nil, err
 	}
-	doc, err := goquery.NewDocumentFromReader(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	return parser.ParseFile(nil, "", doc.Find("script").Text(), 0)
+	return c.parseJavaScript(res)
 }
 
 // parseIdentifier converts identifiers (and DotExpressions) into their
@@ -53,6 +64,42 @@ func (c *Conn) parseIdentifier(exp ast.Expression) (string, bool) {
 	}
 }
 
+// parseValue parses a literal expression and returns its value.
+func (c *Conn) parseValue(exp ast.Expression) interface{} {
+	switch t := exp.(type) {
+	case *ast.BooleanLiteral:
+		return t.Value
+	case *ast.NumberLiteral:
+		return t.Value
+	case *ast.StringLiteral:
+		return t.Value
+	default:
+		return nil
+	}
+}
+
+// parseAssignments steps through a VariableStatement and returns a list of all
+// assignments.
+func (c *Conn) parseAssignments(stm ast.Statement) ([]*astAssignment, bool) {
+	vars, ok := stm.(*ast.VariableStatement)
+	if !ok {
+		return nil, false
+	}
+	asns := []*astAssignment{}
+	for _, exp := range vars.List {
+		vare, ok := exp.(*ast.VariableExpression)
+		if !ok {
+			continue
+		}
+		asn := &astAssignment{
+			Name:  vare.Name,
+			Value: c.parseValue(vare.Initializer),
+		}
+		asns = append(asns, asn)
+	}
+	return asns, true
+}
+
 // parseArray returns a list of expressions in an array.
 func (c *Conn) parseArray(exp ast.Expression) ([]ast.Expression, bool) {
 	arr, ok := exp.(*ast.ArrayLiteral)
@@ -70,14 +117,7 @@ func (c *Conn) parseMap(exp ast.Expression) astMap {
 	}
 	m := make(astMap)
 	for _, v := range obj.Value {
-		switch t := v.Value.(type) {
-		case *ast.BooleanLiteral:
-			m[v.Key] = t.Value
-		case *ast.NumberLiteral:
-			m[v.Key] = t.Value
-		case *ast.StringLiteral:
-			m[v.Key] = t.Value
-		}
+		m[v.Key] = c.parseValue(v.Value)
 	}
 	return m
 }

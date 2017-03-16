@@ -1,10 +1,12 @@
 package sechat
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -68,4 +70,27 @@ func (c *Conn) postForm(path string, data *url.Values) (*http.Response, error) {
 		}
 		return res, nil
 	}
+}
+
+// upload creates and sends a multipart POST request with the specified
+// contents and returns the response.
+func (c *Conn) upload(urlStr, fieldname, filename string, r io.Reader) (*http.Response, error) {
+	var (
+		body   = &bytes.Buffer{}
+		writer = multipart.NewWriter(body)
+	)
+	w, err := writer.CreateFormFile(fieldname, filename)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.Copy(w, r); err != nil {
+		return nil, err
+	}
+	writer.Close()
+	req, err := c.newRequest(http.MethodPost, urlStr, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return c.client.Do(req)
 }
