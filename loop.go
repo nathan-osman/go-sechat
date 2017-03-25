@@ -78,8 +78,10 @@ func (c *Conn) run(ch chan<- *Event) {
 		case c.connectedCh <- false:
 		default:
 		}
-		if _, ok := <-c.closeCh; !ok {
+		select {
+		case <-c.closeCh:
 			return
+		default:
 		}
 		c.log.Info("reconnecting in 30 seconds")
 		select {
