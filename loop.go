@@ -3,6 +3,8 @@ package sechat
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // wsRoom represents data from a specific chat room.
@@ -28,7 +30,9 @@ func (c *Conn) run(ch chan<- *Event) {
 			c.log.Error(err)
 			goto retry
 		}
-		c.log.Info("connected to WebSocket")
+		c.log.WithFields(logrus.Fields{
+			"connected": true,
+		}).Info("connected to WebSocket")
 		select {
 		case c.connectedCh <- true:
 		default:
@@ -74,6 +78,9 @@ func (c *Conn) run(ch chan<- *Event) {
 			}
 		}
 	retry:
+		c.log.WithFields(logrus.Fields{
+			"connected": false,
+		}).Info("disconnected from WebSocket")
 		select {
 		case c.connectedCh <- false:
 		default:
